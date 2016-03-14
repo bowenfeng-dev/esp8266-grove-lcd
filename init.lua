@@ -209,14 +209,60 @@ local function lcd_print(str)
   end
 end
 
+
+function update()
+  http.get('http://192.168.1.192:5000/api/v1/weather',
+    nil,
+    function(code, data)
+      if (code < 0) then
+        lcd_print("HTTP request failed")
+      else
+        print(data)
+        clear()
+        lcd_print(data)
+      end
+    end)
+end
+
+
+
+
+backlight = false
+
+function toggle_backlight()
+  backlight = not backlight
+  if backlight then
+    set_color_white()
+    tmr.alarm(BACKLIGHT_TIMER, 3 * SECOND, tmr.ALARM_SINGLE, toggle_backlight)
+  else
+    tmr.stop(BACKLIGHT_TIMER)
+    set_rgb(0, 0, 0)
+  end
+end
+
+function on_backlight(level)
+  toggle_backlight()
+end
+
 function main()
+  wifi.setmode(wifi.STATION)
+  wifi.sta.config("Linksys01669","cddsvkhacs")
+  wifi.sta.connect()
+
+  gpio.mode(6, gpio.INT)
+  gpio.trig(6, "down", on_backlight)
+  
   i2c.setup(I2C_ID, SDA, SCL, i2c.SLOW)
 
   begin(16, 2)
-  set_color_white()
-  lcd_print("Hello world!\nBowen")
-
-  tmr.alarm(INIT_TIMER, 2000, tmr.ALARM_SINGLE, function() clear() end)
+  toggle_backlight()
+  lcd_print("Love Bunny ~\nWeather Station")
+  
+  tmr.alarm(SPLASH_DELAY, 4 * SECOND, tmr.ALARM_SINGLE,
+      function()
+        update()
+        tmr.alarm(UPDATE_TIMER, 5 * MINUTE, tmr.ALARM_AUTO, update)
+      end)
 end
 
 
@@ -228,5 +274,6 @@ PANIC_SAFTY_INTERVAL = 2 * SECOND
 INIT_TIMER = 0
 SPLASH_DELAY = 1
 UPDATE_TIMER = 2
+BACKLIGHT_TIMER = 3
 
 tmr.alarm(INIT_TIMER, PANIC_SAFTY_INTERVAL, tmr.ALARM_SINGLE, main)
